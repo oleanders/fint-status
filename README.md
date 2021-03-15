@@ -4,6 +4,8 @@ Laget dette for å teste Bulma CSS framework Apiene til FINT gjorde det mer insp
 
 Kjøres lokalt med `npm run dev`
 
+Demo tilgjengelig på https://fintstatus.web.app
+
 ## Bulma CSS framework
 
 * https://bulma.io/documentation/

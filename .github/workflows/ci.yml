@@ -18,18 +18,18 @@ jobs:
           npm install create-elm-app
           npx elm-app build
      
-      - name: Publish to test
+      - name: Publish function
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only "functions:proxy,hosting:fintstatustest"
+          args: deploy --only "functions:proxy"
         env:
           FIREBASE_TOKEN: ${{secrets.firebase_token}}
           PROJECT_ID: eidjord
 
-      - name: Publish to prod
+      - name: Publish web
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only "functions:proxy,hosting:fintstatus"
+          args: deploy --only "hosting:fintstatus"
         env:
           FIREBASE_TOKEN: ${{secrets.firebase_token}}
           PROJECT_ID: eidjord
