@@ -1,0 +1,33 @@
+name: Build and deploy to Firebase
+
+on: 
+  push: 
+    branches: 
+      - master
+
+jobs:
+  build: 
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Build
+        run: |
+          npm ci
+          npx elm-app build
+     
+      - name: Publish to test
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only "functions:proxy,hosting:fintstatustest"
+        env:
+          FIREBASE_TOKEN: ${{secrets.firebase_token}}
+          PROJECT_ID: eidjord
+
+      - name: Publish to prod
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only "functions:proxy,hosting:fintstatus"
+        env:
+          FIREBASE_TOKEN: ${{secrets.firebase_token}}
+          PROJECT_ID: eidjord
