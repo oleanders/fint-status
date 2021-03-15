@@ -14,7 +14,6 @@
   "devDependencies": {
     "concurrently": "^6.0.0",
     "elm-test": "^0.19.1-revision6",
-    "firebase-tools": "^9.6.1",
     "local-cors-proxy": "^1.1.0",
     "node-sass": "^5.0.0"
   },
