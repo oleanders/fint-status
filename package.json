@@ -18,6 +18,7 @@
     "node-sass": "^5.0.0"
   },
   "scripts": {
+    "functions-ci": "cd functions && npm ci",
     "start": "npx elm-app start",
     "test": "npx elm-test --watch",
     "elm-build": "npx elm-app build",
