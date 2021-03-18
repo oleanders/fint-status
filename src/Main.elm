@@ -12,7 +12,7 @@ import List exposing (head, take)
 import RemoteData exposing (RemoteData(..), WebData)
 import Task exposing (onError)
 import Time exposing (Month(..))
-import Url exposing (percentEncode, toString)
+import Url exposing (percentEncode)
 
 
 allekomponenter : List String
@@ -247,7 +247,7 @@ update msg model =
                     ( model, Cmd.none )
 
         AuthenticateResponse (Err error) ->
-            ( { model | errorMessage = httpError error }, Cmd.none )
+            ( { model | errorMessage = Just <| httpError error }, Cmd.none )
 
         HealthStatusResponse komponent webDataHelseStatus ->
             let
@@ -300,7 +300,7 @@ update msg model =
                     ( model, Cmd.none )
 
         ApiDiscoveryResponse (Err error) ->
-            ( { model | errorMessage = httpError error }, Cmd.none )
+            ( { model | errorMessage = Just <| httpError error }, Cmd.none )
 
         LastUpdatedResponse ( komponent, ressurs ) updated ->
             let
@@ -333,23 +333,23 @@ update msg model =
             ( { model | ressursstatus = oppdatertDict }, Cmd.none )
 
 
-httpError : Error -> Maybe String
+httpError : Error -> String
 httpError x =
     case x of
         BadUrl message ->
-            Just message
+            message
 
         Timeout ->
-            Just "Timeout"
+            "Timeout"
 
         NetworkError ->
-            Just "NetworkError"
+            "NetworkError"
 
         BadStatus errorCode ->
-            Just <| "BasStatus: " ++ String.fromInt errorCode
+            "BasStatus: " ++ String.fromInt errorCode
 
         BadBody errorMessage ->
-            Just <| "BadBody: " ++ errorMessage
+            "BadBody: " ++ errorMessage
 
 
 authenticateRequest : Credentials -> Cmd Msg
@@ -734,7 +734,7 @@ viewHelsestatus helsestatus =
             text ""
 
         Failure e ->
-            text <| "Feil med å hente helsestatus: " ++ Debug.toString e
+            text <| "Feil med å hente helsestatus: "
 
 
 viewRessurs : Model -> String -> Ressursstatus -> ( ( String, String ), CacheStatus ) -> Html Msg
@@ -771,7 +771,7 @@ viewCasheStatus cache_ =
                 span [ class "tag is-success" ] [ text <| String.fromInt cachevalue ]
 
         Failure e ->
-            span [ class "tag is-danger" ] [ text <| Debug.toString e ]
+            span [ class "tag is-danger" ] [ text <| httpError e ]
 
 
 viewUpdatedStatus : Model -> WebData Int -> Html Msg
@@ -796,7 +796,7 @@ viewUpdatedStatus model updatedd_ =
                 span [ class <| "tag is-success" ] [ text <| Lib.Tid.tidMellomToTidspunkt model.timeZone (Time.posixToMillis model.tidLastetInn) updated_ ]
 
         Failure e ->
-            span [ class <| "tag is-danger" ] [ text <| Debug.toString e ]
+            span [ class <| "tag is-danger" ] [ text <| httpError e ]
 
 
 
