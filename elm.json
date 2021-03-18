@@ -13,7 +13,8 @@
             "elm/json": "1.1.2",
             "elm/time": "1.0.0",
             "elm/url": "1.0.0",
-            "elm-community/maybe-extra": "5.2.0"
+            "elm-community/maybe-extra": "5.2.0",
+            "krisajenkins/remotedata": "6.0.1"
         },
         "indirect": {
             "elm/bytes": "1.0.8",

@@ -24,6 +24,7 @@
     "elm-build": "npx elm-app build",
     "css-build": "node-sass --omit-source-map-url src/main.scss src/main.css",
     "css-watch": "npm run css-build -- --watch",
+    "functions": "firebase emulators:start --only functions",
     "dev": "concurrently --kill-others \"npm test\" \"npm run css-watch\" \"npm run start\"",
     "build": "concurrently \"npm run css-build\" \"npm run elm-build\""
   },

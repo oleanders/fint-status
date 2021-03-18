@@ -2,16 +2,17 @@ module Main exposing (..)
 
 import Browser
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, div, footer, form, h1, h2, h3, h4, h5, i, img, input, label, li, option, p, pre, section, select, span, strong, text, textarea, ul)
-import Html.Attributes exposing (attribute, checked, class, href, src, style, target, title, type_, value)
+import Html exposing (Html, a, div, footer, form, h1, h2, h3, h4, i, input, label, li, option, p, pre, section, select, span, strong, text, textarea, ul)
+import Html.Attributes exposing (attribute, checked, class, href, target, title, type_, value)
 import Html.Events exposing (onInput, onSubmit)
 import Http exposing (Error(..), Expect, expectStringResponse, header)
-import Json.Decode as Decode exposing (Decoder, decodeString, dict, field, int, keyValuePairs, maybe, string)
+import Json.Decode as Decode exposing (Decoder, decodeString, errorToString, field, int, keyValuePairs, maybe, string)
 import Lib.Tid exposing (tidMellomToTidspunkt)
 import List exposing (head, take)
-import Task
+import RemoteData exposing (RemoteData(..), WebData)
+import Task exposing (onError)
 import Time exposing (Month(..))
-import Url exposing (percentEncode)
+import Url exposing (percentEncode, toString)
 
 
 allekomponenter : List String
@@ -22,16 +23,14 @@ allekomponenter =
     , "administrasjon/kodeverk"
     , "administrasjon/organisasjon"
 
-    -- , "okonomi/faktura"
-    -- , "okonomi/kodeverk"
-    --, "utdanning/basisklasser"
+    --, "okonomi/faktura"
+    --, "okonomi/kodeverk"
     , "utdanning/elev"
+    , "utdanning/kodeverk"
 
-    --, "utdanning/kodeverk"
     --, "utdanning/timeplan"
     --, "utdanning/utdanningsprogram"
-    , "utdanning/vurdering"
-
+    --, "utdanning/vurdering"
     --, "ressurser/tilganger"
     --, "personvern/tilganger"
     --, "felles/basisklasser"
@@ -52,7 +51,7 @@ allekomponenter =
 type alias Model =
     { errorMessage : Maybe String
     , komponenter : List String
-    , helsestatus : Dict String (Maybe HealthStatus)
+    , helsestatus : Dict String (WebData HealthStatus)
     , ressursstatus : Ressursstatus
     , tid : Time.Posix
     , tidLastetInn : Time.Posix
@@ -66,10 +65,9 @@ type alias Ressursstatus =
     Dict ( String, String ) CacheStatus
 
 
-type CacheStatus
-    = --      cacheSize   lastUpdated
-      Loaded (Maybe Int) (Maybe String)
-    | LoadedError
+type alias CacheStatus =
+    --      cacheSize   lastUpdated
+    ( WebData Int, WebData Int )
 
 
 type Environment
@@ -128,15 +126,13 @@ init : ( Model, Cmd Msg )
 init =
     ( { errorMessage = Nothing
       , komponenter = allekomponenter
-      , helsestatus = Dict.fromList (List.map (\komponent -> Tuple.pair komponent Nothing) allekomponenter)
+      , helsestatus = Dict.fromList (List.map (\komponent -> Tuple.pair komponent Loading) allekomponenter)
       , ressursstatus = Dict.empty
       , tid = Time.millisToPosix 0
       , tidLastetInn = Time.millisToPosix 0
       , timeZone = Time.utc
       , state = RunPlayWithFint "play-with-fint.felleskomponent.no" []
-      , environments = [ "play-with-fint.felleskomponent.no", "beta.felleskomponent.no", "prod.felleskomponent.no" ]
-
-      --, environments = [ "localhost:8010/proxy", "localhost:8011/proxy" ]
+      , environments = [ "play-with-fint.felleskomponent.no", "beta.felleskomponent.no", "api.felleskomponent.no" ]
       }
     , Cmd.batch
         [ Task.perform ClockIsTicking Time.now
@@ -151,7 +147,7 @@ apiRequest environment =
     List.map
         (\komponent ->
             Cmd.batch
-                [ httpRequest environment (komponent ++ "/admin/health") (HealthStatusResponse komponent) (healtStatusDecoder komponent)
+                [ httpRequest environment (komponent ++ "/admin/health") (RemoteData.fromResult >> HealthStatusResponse komponent) healtStatusDecoder
                 , httpRequest environment (komponent ++ "/") ApiDiscoveryResponse (apiDiscoveryDecoder komponent)
                 ]
         )
@@ -169,10 +165,10 @@ type Msg
     | AdjustedTimeZone Time.Zone
     | ChangeEnvironment String
     | AuthenticateResponse (Result Http.Error AccessToken)
-    | HealthStatusResponse String (Result Http.Error ( String, HealthStatus ))
+    | HealthStatusResponse String (WebData HealthStatus)
     | ApiDiscoveryResponse (Result Http.Error ( String, List ( String, RessursStatusUrls ) ))
-    | LastUpdatedResponse (Result Http.Error ( ( String, String ), String ))
-    | CasheSizeResponse (Result Http.Error ( ( String, String ), Int ))
+    | LastUpdatedResponse ( String, String ) (WebData Int)
+    | CasheSizeResponse ( String, String ) (WebData Int)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -228,7 +224,7 @@ update msg model =
             in
             ( { model
                 | state = state
-                , helsestatus = Dict.fromList (List.map (\komponent -> Tuple.pair komponent Nothing) allekomponenter)
+                , helsestatus = Dict.fromList (List.map (\komponent -> Tuple.pair komponent Loading) allekomponenter)
                 , ressursstatus = Dict.empty
               }
             , cmd
@@ -253,47 +249,32 @@ update msg model =
         AuthenticateResponse (Err error) ->
             ( { model | errorMessage = httpError error }, Cmd.none )
 
-        HealthStatusResponse komponent2 (Ok ( komponent, x )) ->
+        HealthStatusResponse komponent webDataHelseStatus ->
             let
                 oppdatertDict =
                     Dict.map
-                        (\k a ->
-                            if k == komponent then
-                                Just x
+                        (\key item ->
+                            if key == komponent then
+                                webDataHelseStatus
 
                             else
-                                a
+                                item
                         )
                         model.helsestatus
             in
             ( { model | helsestatus = oppdatertDict }, Cmd.none )
 
-        HealthStatusResponse komponent (Err error) ->
-            let
-                oppdatertDict =
-                    Dict.map
-                        (\k a ->
-                            if k == komponent then
-                                Just <| HealthStatus "EH" 0 [] (httpError error)
-
-                            else
-                                a
-                        )
-                        model.helsestatus
-            in
-            ( { model | errorMessage = httpError error }, Cmd.none )
-
         ApiDiscoveryResponse (Ok ( komponent, urls )) ->
             let
                 createStatusHttpRequests environment ( ressurs, urler ) =
                     Cmd.batch
-                        [ httpRequest environment urler.cacheSizeUrl CasheSizeResponse (casheSizeDecoder ( komponent, ressurs ))
-                        , httpRequest environment urler.lastUpdatedUrl LastUpdatedResponse (lastUpdatedDecoder ( komponent, ressurs ))
+                        [ httpRequest environment urler.cacheSizeUrl (RemoteData.fromResult >> CasheSizeResponse ( komponent, ressurs )) casheSizeDecoder
+                        , httpRequest environment urler.lastUpdatedUrl (RemoteData.fromResult >> LastUpdatedResponse ( komponent, ressurs )) lastUpdatedDecoder
                         ]
 
                 dict2 =
                     urls
-                        |> List.map (\( navn, _ ) -> ( ( komponent, navn ), Loaded Nothing Nothing ))
+                        |> List.map (\( navn, _ ) -> ( ( komponent, navn ), ( Loading, Loading ) ))
                         |> Dict.fromList
 
                 ressursstatus_ =
@@ -321,51 +302,35 @@ update msg model =
         ApiDiscoveryResponse (Err error) ->
             ( { model | errorMessage = httpError error }, Cmd.none )
 
-        LastUpdatedResponse (Ok ( ( komponent, ressurs ), updated )) ->
+        LastUpdatedResponse ( komponent, ressurs ) updated ->
             let
                 oppdatertDict =
                     Dict.map
-                        (\( komp, hoved ) verdier ->
+                        (\( komp, hoved ) ( cache, u ) ->
                             if komponent == komp && ressurs == hoved then
-                                case verdier of
-                                    Loaded cache _ ->
-                                        Loaded cache (Just updated)
-
-                                    LoadedError ->
-                                        verdier
+                                ( cache, updated )
 
                             else
-                                verdier
+                                ( cache, u )
                         )
                         model.ressursstatus
             in
             ( { model | ressursstatus = oppdatertDict }, Cmd.none )
 
-        LastUpdatedResponse (Err error) ->
-            ( { model | errorMessage = httpError error }, Cmd.none )
-
-        CasheSizeResponse (Ok ( ( komponent, ressurs ), cache )) ->
+        CasheSizeResponse ( komponent, ressurs ) cache ->
             let
                 oppdatertDict =
                     Dict.map
-                        (\( komp, hoved ) verdier ->
+                        (\( komp, hoved ) ( c, updated ) ->
                             if komponent == komp && ressurs == hoved then
-                                case verdier of
-                                    Loaded _ updated ->
-                                        Loaded (Just cache) updated
-
-                                    LoadedError ->
-                                        verdier
+                                ( cache, updated )
 
                             else
-                                verdier
+                                ( c, updated )
                         )
                         model.ressursstatus
             in
             ( { model | ressursstatus = oppdatertDict }, Cmd.none )
-
-        CasheSizeResponse (Err error) ->
-            ( { model | errorMessage = httpError error }, Cmd.none )
 
 
 httpError : Error -> Maybe String
@@ -457,6 +422,8 @@ httpRequest environment url msg decoder =
         , body = Http.emptyBody
         , expect = Http.expectJson msg decoder
         , timeout = Nothing
+
+        --, timeout = Just 1000.0
         , tracker = Nothing
         }
 
@@ -492,24 +459,21 @@ expectJson toMsg decoder =
                             Err (Http.BadBody (Decode.errorToString err))
 
 
-healtStatusDecoder : String -> Decoder ( String, HealthStatus )
-healtStatusDecoder url =
-    Decode.map2 Tuple.pair
-        (Decode.succeed url)
-    <|
-        Decode.map4 HealthStatus
-            (field "source" string)
-            (field "time" int)
-            (Decode.field "data"
-                (Decode.list
-                    (Decode.map3 HealthStatusdata
-                        (field "component" string)
-                        (field "status" string)
-                        (field "timestamp" int)
-                    )
+healtStatusDecoder : Decoder HealthStatus
+healtStatusDecoder =
+    Decode.map4 HealthStatus
+        (field "source" string)
+        (field "time" int)
+        (Decode.field "data"
+            (Decode.list
+                (Decode.map3 HealthStatusdata
+                    (field "component" string)
+                    (field "status" string)
+                    (field "timestamp" int)
                 )
             )
-            (maybe (field "message" string))
+        )
+        (maybe (field "message" string))
 
 
 apiDiscoveryDecoder : String -> Decoder ( String, List ( String, RessursStatusUrls ) )
@@ -524,18 +488,21 @@ apiDiscoveryDecoder komponent =
             )
 
 
-lastUpdatedDecoder : ( String, String ) -> Decoder ( ( String, String ), String )
-lastUpdatedDecoder ( komponent, ressurs ) =
-    Decode.map2 Tuple.pair
-        (Decode.map2 Tuple.pair (Decode.succeed komponent) (Decode.succeed ressurs))
-        (field "lastUpdated" string)
+lastUpdatedDecoder : Decoder Int
+lastUpdatedDecoder =
+    field "lastUpdated"
+        (Decode.map
+            (\str ->
+                String.toInt str
+                    |> Maybe.withDefault 0
+            )
+            string
+        )
 
 
-casheSizeDecoder : ( String, String ) -> Decoder ( ( String, String ), Int )
-casheSizeDecoder ( komponent, ressurs ) =
-    Decode.map2 Tuple.pair
-        (Decode.map2 Tuple.pair (Decode.succeed komponent) (Decode.succeed ressurs))
-        (field "size" int)
+casheSizeDecoder : Decoder Int
+casheSizeDecoder =
+    field "size" int
 
 
 credentialsDecoder : Decoder Credentials
@@ -672,12 +639,13 @@ viewInnlogget url model =
         List.map (\( komp, d ) -> viewKomponent model url komp d) (Dict.toList model.helsestatus)
 
 
-viewKomponent : Model -> String -> String -> Maybe HealthStatus -> Html Msg
+viewKomponent : Model -> String -> String -> WebData HealthStatus -> Html Msg
 viewKomponent model url komponent komponentdata =
     let
         viewRessurstatus url_ =
-            Dict.keys model.ressursstatus
-                |> List.filter (\( k, h ) -> k == komponent)
+            model.ressursstatus
+                |> Dict.filter (\( k, h ) x -> k == komponent)
+                |> Dict.toList
                 |> List.map (viewRessurs model url_ model.ressursstatus)
     in
     div [ class "column is-two-fifths is-flex-grow-3" ]
@@ -702,7 +670,7 @@ viewKomponent model url komponent komponentdata =
         ]
 
 
-viewHelsestatus : Maybe HealthStatus -> Html Msg
+viewHelsestatus : WebData HealthStatus -> Html Msg
 viewHelsestatus helsestatus =
     let
         statusIkon hstatus ii =
@@ -728,7 +696,7 @@ viewHelsestatus helsestatus =
                     [ span [ class "steps-marker" ] [ span [ class "icon" ] [ i [ class "fas fa-times" ] [] ] ] ]
     in
     case helsestatus of
-        Just hstatus ->
+        Success hstatus ->
             div []
                 [ ul [ class "steps is-hollow is-balanced" ]
                     [ li [ class "steps-segment " ] <|
@@ -742,7 +710,7 @@ viewHelsestatus helsestatus =
                     ]
                 ]
 
-        Nothing ->
+        Loading ->
             ul [ class "steps is-hollow" ]
                 [ li [ class "steps-segment" ]
                     [ span [ class "steps-marker" ]
@@ -762,35 +730,15 @@ viewHelsestatus helsestatus =
                     ]
                 ]
 
+        NotAsked ->
+            text ""
 
-viewRessurs : Model -> String -> Ressursstatus -> ( String, String ) -> Html Msg
-viewRessurs model url ressursstatus ( komponent, ressurs ) =
-    let
-        ( size, updated ) =
-            case Dict.get ( komponent, ressurs ) model.ressursstatus of
-                Just (Loaded sizex updatedx) ->
-                    ( Maybe.withDefault -1 sizex, Maybe.withDefault 0 (String.toInt (Maybe.withDefault "" updatedx)) )
+        Failure e ->
+            text <| "Feil med å hente helsestatus: " ++ Debug.toString e
 
-                _ ->
-                    ( -1, -1 )
 
-        cacheStatusClass =
-            if size == 0 then
-                "is-warning"
-
-            else
-                "is-success"
-
-        ( updatedStatusClass, updatedStatusTekst ) =
-            if updated == 0 then
-                ( "is-danger", "Aldri oppdatert!" )
-
-            else if Time.posixToMillis model.tidLastetInn - updated > (15 * 60 * 1000) then
-                ( "is-warning", Lib.Tid.tidMellomToTidspunkt model.timeZone (Time.posixToMillis model.tidLastetInn) updated )
-
-            else
-                ( "is-success", Lib.Tid.tidMellomToTidspunkt model.timeZone (Time.posixToMillis model.tidLastetInn) updated )
-    in
+viewRessurs : Model -> String -> Ressursstatus -> ( ( String, String ), CacheStatus ) -> Html Msg
+viewRessurs model url ressursstatus ( ( komponent, ressurs ), ( cache, updated ) ) =
     div [ class "control" ]
         [ div [ class "tags has-addons" ]
             [ a
@@ -800,12 +748,55 @@ viewRessurs model url ressursstatus ( komponent, ressurs ) =
                 , title "Åpne ressurs i FINT Test Client"
                 ]
                 [ text ressurs ]
-            , span [ class ("tag " ++ cacheStatusClass) ] [ text <| String.fromInt size ]
-            , span
-                [ class <| "tag " ++ updatedStatusClass ]
-                [ text updatedStatusTekst ]
+            , viewCasheStatus cache
+            , viewUpdatedStatus model updated
             ]
         ]
+
+
+viewCasheStatus : WebData Int -> Html Msg
+viewCasheStatus cache_ =
+    case cache_ of
+        NotAsked ->
+            span [ class "tag" ] [ text "" ]
+
+        Loading ->
+            span [ class "tag" ] [ span [ class "icon" ] [ i [ class "fas fa-spinner fa-pulse" ] [] ] ]
+
+        Success cachevalue ->
+            if cachevalue == 0 then
+                span [ class "tag is-warning" ] [ text <| String.fromInt cachevalue ]
+
+            else
+                span [ class "tag is-success" ] [ text <| String.fromInt cachevalue ]
+
+        Failure e ->
+            span [ class "tag is-danger" ] [ text <| Debug.toString e ]
+
+
+viewUpdatedStatus : Model -> WebData Int -> Html Msg
+viewUpdatedStatus model updatedd_ =
+    case updatedd_ of
+        NotAsked ->
+            span [ class <| "tag " ] [ text "" ]
+
+        Loading ->
+            span [ class <| "tag " ] [ span [ class "icon" ] [ i [ class "fas fa-spinner fa-pulse" ] [] ] ]
+
+        Success updated_ ->
+            if updated_ == 0 then
+                span [ class <| "tag is-warning" ] [ text "Aldri oppdatert!" ]
+
+            else if Time.posixToMillis model.tidLastetInn - updated_ > (15 * 60 * 1000) then
+                span [ class <| "tag is-warning" ]
+                    [ text <| Lib.Tid.tidMellomToTidspunkt model.timeZone (Time.posixToMillis model.tidLastetInn) updated_
+                    ]
+
+            else
+                span [ class <| "tag is-success" ] [ text <| Lib.Tid.tidMellomToTidspunkt model.timeZone (Time.posixToMillis model.tidLastetInn) updated_ ]
+
+        Failure e ->
+            span [ class <| "tag is-danger" ] [ text <| Debug.toString e ]
 
 
 
