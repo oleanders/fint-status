@@ -3,8 +3,17 @@ const rp = require('request-promise');
 
 exports.proxy = functions.https.onRequest((req, res) => {
 
-    // temproary url fix: 
-    const requestUrl = "https://" + req.url.replace(/^\/proxy\/https:\//, '');
+    // url fix: 
+    const requestUrl = req.url
+        .replace(/^\//, '') // fjerner "/"
+        .replace(/^proxy\/https:\//, 'https://'); // rydder url i publisert function
+
+    //functions.logger.info("requestUrl: ", requestUrl);
+
+    if (!/^https:\/\/[a-zA-Z-]*\.felleskomponent\.no/.test(requestUrl)) {
+        res.status(400).send("Kun for *.felleskomponent.no")
+        return
+    }
 
     var options = {
         method: req.method,
@@ -18,7 +27,7 @@ exports.proxy = functions.https.onRequest((req, res) => {
         },
         json: true
     };
-    functions.logger.info("New Request options: ", options);
+    //functions.logger.info("New Request options: ", options);
 
     rp(options)
         .then(parsedBody => {

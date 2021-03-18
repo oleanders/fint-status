@@ -1,6 +1,6 @@
 # fint-status
 
-Laget dette for å teste Bulma CSS framework Apiene til FINT gjorde det mer inspirerende. I første omgang laget med `play-with-fint`, som har åpne api med CORS-støtte. La til slutt på innlogging til `beta` og `prod`-miljø. Laget da en liten proxy som håndterer forespørsler mot FINT i beta og prod. 
+Laget dette for å teste Bulma CSS framework. Apiene til FINT gjorde det mer inspirerende. I første omgang laget med `play-with-fint`, som har åpne api med CORS-støtte. La til slutt på innlogging til `beta` og `prod`-miljø. Laget da en liten proxy som håndterer forespørsler mot FINT i beta og prod. 
 
 Kjøres lokalt med `npm run dev`
 
