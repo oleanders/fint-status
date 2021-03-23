@@ -48,10 +48,18 @@ allekomponenter =
 ---- MODEL ----
 
 
+type alias Komponent =
+    String
+
+
+type alias Ressurs =
+    ( String, String )
+
+
 type alias Model =
     { errorMessage : Maybe String
-    , komponenter : List String
-    , helsestatus : Dict String (WebData HealthStatus)
+    , komponenter : List Komponent
+    , helsestatus : Dict Komponent (WebData HealthStatus)
     , ressursstatus : Ressursstatus
     , tid : Time.Posix
     , tidLastetInn : Time.Posix
@@ -62,11 +70,11 @@ type alias Model =
 
 
 type alias Ressursstatus =
-    Dict ( String, String ) CacheStatus
+    Dict Ressurs CacheStatus
 
 
 type alias CacheStatus =
-    --      cacheSize   lastUpdated
+    -- cacheSize   lastUpdated
     ( WebData Int, WebData Int )
 
 
@@ -368,7 +376,7 @@ authenticateRequest cred =
                 , ( "client_secret", cred.clientSecret )
                 , ( "scope", "fint-client" )
                 ]
-        , expect = Http.expectJson AuthenticateResponse accessTokenDecoder
+        , expect = expectJson AuthenticateResponse accessTokenDecoder
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -734,7 +742,7 @@ viewHelsestatus helsestatus =
             text ""
 
         Failure e ->
-            text <| "Feil med å hente helsestatus: "
+            text <| "Feil med å hente helsestatus: " ++ httpError e
 
 
 viewRessurs : Model -> String -> Ressursstatus -> ( ( String, String ), CacheStatus ) -> Html Msg
