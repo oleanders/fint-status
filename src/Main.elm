@@ -489,9 +489,10 @@ httpRequest environment url msg decoder =
                 ++ headerAuth
         , url =
             --if environment == PlayWithFint then
-            --    completeUrl
-            --else
-            "http://localhost:8010/proxy/" ++ String.replace "https://play-with-fint.felleskomponent.no/" "" url
+            completeUrl
+
+        --else
+        --"http://localhost:8010/proxy/" ++ String.replace "https://play-with-fint.felleskomponent.no/" "" url
         , body = Http.emptyBody
         , expect = Http.expectJson msg decoder
         , timeout = Nothing
