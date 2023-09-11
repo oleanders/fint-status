@@ -3,14 +3,15 @@ module Main exposing (..)
 import Browser
 import Dict exposing (Dict)
 import Html exposing (Html, a, div, footer, form, h1, h2, h3, h4, i, input, label, li, option, p, pre, section, select, span, strong, text, textarea, ul)
-import Html.Attributes exposing (attribute, checked, class, href, target, title, type_, value)
+import Html.Attributes exposing (attribute, checked, class, href, id, target, title, type_, value)
 import Html.Events exposing (onInput, onSubmit)
 import Http exposing (Error(..), Expect, expectStringResponse, header)
-import Json.Decode as Decode exposing (Decoder, decodeString, errorToString, field, int, keyValuePairs, maybe, string)
+import Json.Decode as Decode exposing (Decoder, decodeString, field, int, keyValuePairs, maybe, string)
 import Lib.Tid exposing (tidMellomToTidspunkt)
 import List exposing (head, take)
+import Maybe exposing (withDefault)
 import RemoteData exposing (RemoteData(..), WebData)
-import Task exposing (onError)
+import Task
 import Time exposing (Month(..))
 import Url exposing (percentEncode)
 
@@ -18,29 +19,59 @@ import Url exposing (percentEncode)
 allekomponenter : List String
 allekomponenter =
     [ "administrasjon/personal"
-
-    --, "administrasjon/fullmakt"
+    , "administrasjon/fullmakt"
     , "administrasjon/kodeverk"
     , "administrasjon/organisasjon"
-
-    --, "okonomi/faktura"
-    --, "okonomi/kodeverk"
+    , "okonomi/faktura"
+    , "okonomi/kodeverk"
     , "utdanning/elev"
     , "utdanning/kodeverk"
+    , "utdanning/timeplan"
+    , "utdanning/utdanningsprogram"
+    , "utdanning/vurdering"
 
-    --, "utdanning/timeplan"
-    --, "utdanning/utdanningsprogram"
-    --, "utdanning/vurdering"
-    --, "ressurser/tilganger"
-    --, "personvern/tilganger"
-    --, "felles/basisklasser"
-    --, "felles/kodeverk"
-    --, "felles/iso"
-    --, "arkiv/kodeverk"
+    --, "personvern/kodeverk"
+    --, "personvern/samtykke"
+    , "felles/kodeverk"
+    , "arkiv/noark"
+    , "arkiv/kodeverk"
+
     --, "arkiv/kulturminnevern"
-    --, "arkiv/noark"
     --, "arkiv/personal"
     --, "arkiv/samferdsel"
+    , "utdanning/vigo/kodeverk"
+    ]
+
+
+vigoKodeverkRessurser : List String
+vigoKodeverkRessurser =
+    [ "fylker"
+    , "arsakskoder"
+    , "eksamensformer"
+    , "eksamensvurderinger"
+    , "fag"
+    , "fagmerknader"
+    , "fagtyper"
+    , "fremmedsprak"
+    , "hovedomrader"
+    , "karakterer"
+    , "kommuner"
+    , "kompetansemal"
+    , "kompetansemalsett"
+    , "land"
+    , "lareplaner"
+    , "malform"
+    , "merkelapper"
+    , "morsmal"
+    , "onskestatus"
+    , "opplaringsfag"
+    , "poststeder"
+    , "programomradekategorier"
+    , "programomrader"
+    , "skoler"
+    , "utdanningsprogrammer"
+    , "variablerregistreringshandboken"
+    , "vitnemalsmerknader"
     ]
 
 
@@ -60,6 +91,7 @@ type alias Model =
     { errorMessage : Maybe String
     , komponenter : List Komponent
     , helsestatus : Dict Komponent (WebData HealthStatus)
+    , versions : Dict Komponent (WebData String)
     , ressursstatus : Ressursstatus
     , tid : Time.Posix
     , tidLastetInn : Time.Posix
@@ -135,7 +167,11 @@ init =
     ( { errorMessage = Nothing
       , komponenter = allekomponenter
       , helsestatus = Dict.fromList (List.map (\komponent -> Tuple.pair komponent Loading) allekomponenter)
-      , ressursstatus = Dict.empty
+      , versions = Dict.fromList (List.map (\komponent -> Tuple.pair komponent Loading) allekomponenter)
+      , ressursstatus =
+            vigoKodeverkRessurser
+                |> List.map (\ressurs -> ( ( "utdanning/vigo/kodeverk", ressurs ), ( Loading, Loading ) ))
+                |> Dict.fromList
       , tid = Time.millisToPosix 0
       , tidLastetInn = Time.millisToPosix 0
       , timeZone = Time.utc
@@ -146,8 +182,21 @@ init =
         [ Task.perform ClockIsTicking Time.now
         , Task.perform AdjustedTimeZone Time.here
         , apiRequest PlayWithFint allekomponenter
+        , vigoKodeverkRessursApiRequests vigoKodeverkRessurser
         ]
     )
+
+
+vigoKodeverkRessursApiRequests : List String -> Cmd Msg
+vigoKodeverkRessursApiRequests =
+    List.map
+        (\ressurs ->
+            Cmd.batch
+                [ httpRequest PlayWithFint ("https://play-with-fint.felleskomponent.no/utdanning/vigo/kodeverk/" ++ ressurs ++ "/cache/size") (RemoteData.fromResult >> CasheSizeResponse ( "utdanning/vigo/kodeverk", ressurs )) casheSizeDecoder
+                , httpRequest PlayWithFint ("https://play-with-fint.felleskomponent.no/utdanning/vigo/kodeverk/" ++ ressurs ++ "/last-updated") (RemoteData.fromResult >> LastUpdatedResponse ( "utdanning/vigo/kodeverk", ressurs )) lastUpdatedDecoder
+                ]
+        )
+        >> Cmd.batch
 
 
 apiRequest : Environment -> List String -> Cmd Msg
@@ -157,6 +206,7 @@ apiRequest environment =
             Cmd.batch
                 [ httpRequest environment (komponent ++ "/admin/health") (RemoteData.fromResult >> HealthStatusResponse komponent) healtStatusDecoder
                 , httpRequest environment (komponent ++ "/") ApiDiscoveryResponse (apiDiscoveryDecoder komponent)
+                , httpRequest environment (komponent ++ "/v2/api-docs") (RemoteData.fromResult >> SwaggerResponse komponent) swaggerDecoder
                 ]
         )
         >> Cmd.batch
@@ -174,6 +224,7 @@ type Msg
     | ChangeEnvironment String
     | AuthenticateResponse (Result Http.Error AccessToken)
     | HealthStatusResponse String (WebData HealthStatus)
+    | SwaggerResponse String (WebData String)
     | ApiDiscoveryResponse (Result Http.Error ( String, List ( String, RessursStatusUrls ) ))
     | LastUpdatedResponse ( String, String ) (WebData Int)
     | CasheSizeResponse ( String, String ) (WebData Int)
@@ -272,6 +323,21 @@ update msg model =
             in
             ( { model | helsestatus = oppdatertDict }, Cmd.none )
 
+        SwaggerResponse komponent webDataSwagger ->
+            let
+                oppdaterDict =
+                    Dict.map
+                        (\key item ->
+                            if key == komponent then
+                                webDataSwagger
+
+                            else
+                                item
+                        )
+                        model.versions
+            in
+            ( { model | versions = oppdaterDict }, Cmd.none )
+
         ApiDiscoveryResponse (Ok ( komponent, urls )) ->
             let
                 createStatusHttpRequests environment ( ressurs, urler ) =
@@ -289,17 +355,17 @@ update msg model =
                     Dict.union model.ressursstatus dict2
             in
             case model.state of
-                RunPlayWithFint url komponenter ->
+                RunPlayWithFint _ _ ->
                     ( { model | ressursstatus = ressursstatus_ }
                     , urls |> List.map (createStatusHttpRequests PlayWithFint) |> Cmd.batch
                     )
 
-                RunBeta url accessToken _ ->
+                RunBeta _ accessToken _ ->
                     ( { model | ressursstatus = ressursstatus_ }
                     , urls |> List.map (createStatusHttpRequests (Beta accessToken)) |> Cmd.batch
                     )
 
-                RunProd url accessToken _ ->
+                RunProd _ accessToken _ ->
                     ( { model | ressursstatus = ressursstatus_ }
                     , urls |> List.map (createStatusHttpRequests (Prod accessToken)) |> Cmd.batch
                     )
@@ -354,7 +420,7 @@ httpError x =
             "NetworkError"
 
         BadStatus errorCode ->
-            "BasStatus: " ++ String.fromInt errorCode
+            "BadStatus: " ++ String.fromInt errorCode
 
         BadBody errorMessage ->
             "BadBody: " ++ errorMessage
@@ -418,15 +484,16 @@ httpRequest environment url msg decoder =
         { method = "GET"
         , headers =
             [ header "x-client" "fint-client"
-            , header "x-org-id" "x"
+            , header "x-org-id" "pwf.no"
             ]
                 ++ headerAuth
         , url =
-            if environment == PlayWithFint then
-                completeUrl
+            --if environment == PlayWithFint then
+            --completeUrl
+            --else
+            "https://us-central1-eidjord.cloudfunctions.net/proxy/" ++ completeUrl
 
-            else
-                "/proxy/" ++ completeUrl
+        --"http://localhost:8010/proxy/" ++ String.replace "https://play-with-fint.felleskomponent.no/" "" url
         , body = Http.emptyBody
         , expect = Http.expectJson msg decoder
         , timeout = Nothing
@@ -458,7 +525,7 @@ expectJson toMsg decoder =
                         Err _ ->
                             Err (Http.BadStatus metadata.statusCode)
 
-                Http.GoodStatus_ metadata body ->
+                Http.GoodStatus_ _ body ->
                     case decodeString decoder body of
                         Ok value ->
                             Ok value
@@ -482,6 +549,12 @@ healtStatusDecoder =
             )
         )
         (maybe (field "message" string))
+
+
+swaggerDecoder : Decoder String
+swaggerDecoder =
+    Decode.field "info"
+        (field "version" Decode.string)
 
 
 apiDiscoveryDecoder : String -> Decoder ( String, List ( String, RessursStatusUrls ) )
@@ -570,16 +643,16 @@ view model =
                     LoginForm environment tekstfelt error ->
                         viewUtlogget environment tekstfelt error
 
-                    TryingToAuthenticate environment ->
+                    TryingToAuthenticate _ ->
                         div [] [ text "Authenticating..." ]
 
-                    RunPlayWithFint url komponenter ->
+                    RunPlayWithFint url _ ->
                         viewInnlogget url model
 
-                    RunBeta url accessToken komponenter ->
+                    RunBeta url _ _ ->
                         viewInnlogget url model
 
-                    RunProd url accessToken komponenter ->
+                    RunProd url _ _ ->
                         viewInnlogget url model
                 ]
             ]
@@ -650,11 +723,45 @@ viewInnlogget url model =
 viewKomponent : Model -> String -> String -> WebData HealthStatus -> Html Msg
 viewKomponent model url komponent komponentdata =
     let
-        viewRessurstatus url_ =
+        ressursstatusListe =
             model.ressursstatus
-                |> Dict.filter (\( k, h ) x -> k == komponent)
+                |> Dict.filter (\( k, _ ) _ -> k == komponent)
                 |> Dict.toList
-                |> List.map (viewRessurs model url_ model.ressursstatus)
+
+        viewRessurstatus =
+            if List.length ressursstatusListe > 0 then
+                List.map (viewRessurs model url model.ressursstatus) ressursstatusListe
+
+            else
+                [ div [ class "icon-text" ]
+                    [ span [ class "icon has-text-warning" ] [ i [ class "fas fa-exclamation-triangle" ] [] ]
+                    , span [] [ text "Fant ingen ressurser i API Service Discovery" ]
+                    ]
+                ]
+
+        viewVersjonsnummer =
+            case model.versions |> Dict.get komponent of
+                Just versjonWebData ->
+                    case versjonWebData of
+                        Success versjon ->
+                            let
+                                v =
+                                    String.left (String.length versjon // 2) versjon
+                            in
+                            a [ href <| "https://informasjonsmodell.felleskomponent.no/docs?v=v" ++ v ]
+                                [ text <| v ]
+
+                        Loading ->
+                            span [ class "steps-marker" ] [ span [ class "icon" ] [ i [ class "fas fa-spinner fa-pulse" ] [] ] ]
+
+                        Failure x ->
+                            text "fant ikke versjonsnummer"
+
+                        NotAsked ->
+                            span [ class "steps-marker" ] [ span [ class "icon" ] [ i [ class "fas fa-spinner fa-pulse" ] [] ] ]
+
+                Nothing ->
+                    text "fant ikke versjonsnummer"
     in
     div [ class "column is-two-fifths is-flex-grow-3" ]
         [ div [ class "card m-3" ]
@@ -662,17 +769,14 @@ viewKomponent model url komponent komponentdata =
                 [ class "card-header" ]
                 [ p [ class "card-header-title" ] [ text komponent ]
                 , a [ attribute "aria-label" "more options", class "card-header-icon has-text-dark" ]
-                    [ span [ class "icon" ]
-                        [ i [ attribute "aria-hidden" "true", class "fas fa-angle-down" ]
-                            []
-                        ]
+                    [ viewVersjonsnummer
                     ]
                 ]
             , div [ class "card-content" ]
                 [ h4 [ class "title is-6 mb-3" ] [ text "Helsestatus" ]
                 , viewHelsestatus komponentdata
                 , h4 [ class "title is-6 mt-5 mb-3" ] [ text "Ressursstatus" ]
-                , div [ class "field is-grouped is-grouped-multiline" ] <| viewRessurstatus url
+                , div [ class "field is-grouped is-grouped-multiline" ] <| viewRessurstatus
                 ]
             ]
         ]
@@ -716,6 +820,17 @@ viewHelsestatus helsestatus =
                     , li [ class "steps-segment" ] <|
                         statusIkon hstatus 4
                     ]
+                , p [] <|
+                    case hstatus.message of
+                        Just x ->
+                            [ div [ class "icon-text" ]
+                                [ span [ class "icon has-text-warning" ] [ i [ class "fas fa-exclamation-triangle" ] [] ]
+                                , span [] [ text x ]
+                                ]
+                            ]
+
+                        Nothing ->
+                            []
                 ]
 
         Loading ->
@@ -742,22 +857,56 @@ viewHelsestatus helsestatus =
             text ""
 
         Failure e ->
-            text <| "Feil med å hente helsestatus: " ++ httpError e
+            div [ class "icon-text" ]
+                [ span [ class "icon has-text-warning" ] [ i [ class "fas fa-exclamation-triangle" ] [] ]
+                , span [] [ text <| "Feil med å hente helsestatus (" ++ httpError e ++ ")" ]
+                ]
 
 
 viewRessurs : Model -> String -> Ressursstatus -> ( ( String, String ), CacheStatus ) -> Html Msg
-viewRessurs model url ressursstatus ( ( komponent, ressurs ), ( cache, updated ) ) =
+viewRessurs model url _ ( ( komponent, ressurs ), ( cache, updated ) ) =
     div [ class "control" ]
-        [ div [ class "tags has-addons" ]
-            [ a
-                [ class "tag is-dark"
-                , href <| "https://" ++ url ++ "/?/" ++ komponent ++ "/" ++ ressurs
-                , target "_blank"
-                , title "Åpne ressurs i FINT Test Client"
+        [ div [ class "dropdown is-hoverable" ]
+            [ div [ class "tags has-addons dropdown-trigger" ]
+                [ a
+                    [ class "tag is-dark"
+                    , href <| "https://" ++ url ++ "/?/" ++ komponent ++ "/" ++ ressurs
+                    , target "_blank"
+                    , title "Åpne ressurs i FINT Test Client"
+                    , attribute "aria-haspopup" "true"
+                    ]
+                    [ text ressurs ]
+                , viewCasheStatus cache
+                , viewUpdatedStatus model updated
+                , div [ class "dropdown-menu", attribute "role" "menu" ]
+                    [ div [ class "dropdown-content" ]
+                        [ div [ class "dropdown-item" ]
+                            [ a [ class "tag is-dark", href <| "https://" ++ url ++ "/?/" ++ komponent ++ "/" ++ ressurs, target "_blank", title "Åpne ressurs i FINT Test Client", attribute "aria-haspopup" "true" ]
+                                [ text "Åpne i Test Client" ]
+                            ]
+                        , div [ class "dropdown-item" ]
+                            [ a
+                                [ class "tag is-dark"
+                                , href <|
+                                    "https://informasjonsmodell.felleskomponent.no/docs/"
+                                        ++ (komponent
+                                                |> String.split "/"
+                                                |> List.reverse
+                                                |> List.head
+                                                |> withDefault ""
+                                           )
+                                        ++ "_"
+                                        ++ ressurs
+                                        ++ "?v=v3.10.0"
+                                , target "informasjonsmodell"
+                                , title "Åpne i informasjonsmodellen"
+                                , attribute "aria-haspopup" "true"
+                                ]
+                                [ text "Åpne i informasjonsmodelen" ]
+                            ]
+                        ]
+                    ]
                 ]
-                [ text ressurs ]
-            , viewCasheStatus cache
-            , viewUpdatedStatus model updated
             ]
         ]
 
