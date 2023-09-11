@@ -29,3 +29,11 @@ jobs:
         env:
           FIREBASE_TOKEN: ${{secrets.firebase_token}}
           PROJECT_ID: eidjord
+
+      - name: Publish web
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only "hosting:fintstatustest"
+        env:
+          FIREBASE_TOKEN: ${{secrets.firebase_token}}
+          PROJECT_ID: eidjord
