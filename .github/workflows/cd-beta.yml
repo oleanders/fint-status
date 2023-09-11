@@ -3,7 +3,7 @@ name: Build and deploy to Firebase
 on: 
   push: 
     branches-ignore:
-      - master
+      - main
 
 jobs:
   build: 
