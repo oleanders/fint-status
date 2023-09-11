@@ -1,0 +1,27 @@
+name: Build and deploy to Firebase
+
+on: 
+  push: 
+    branches-ignore:
+      - master
+
+jobs:
+  build: 
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Build
+        run: |
+          npm ci
+          npm run functions-ci
+          npm install create-elm-app
+          npx elm-app build
+     
+      - name: Publish function
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only "functions:proxy"
+        env:
+          FIREBASE_TOKEN: ${{secrets.firebase_token}}
+          PROJECT_ID: eidjord
