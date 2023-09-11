@@ -491,7 +491,7 @@ httpRequest environment url msg decoder =
             --if environment == PlayWithFint then
             --completeUrl
             --else
-            "https://us-central1-eidjord.cloudfunctions.net/proxy/" ++ String.replace "https://play-with-fint.felleskomponent.no/" "" url
+            "https://us-central1-eidjord.cloudfunctions.net/proxy/" ++ completeUrl
 
         --"http://localhost:8010/proxy/" ++ String.replace "https://play-with-fint.felleskomponent.no/" "" url
         , body = Http.emptyBody
