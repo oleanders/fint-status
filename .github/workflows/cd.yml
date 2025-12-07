@@ -17,7 +17,7 @@ jobs:
 
       - name: Build
         run: |
-          npm ci
+          npm install
           npm run functions-ci
           npm install create-elm-app
           npx elm-app build
