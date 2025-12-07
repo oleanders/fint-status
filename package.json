@@ -21,7 +21,7 @@
   },
   "scripts": {
     "functions-ci": "cd functions && npm ci",
-    "start": "npx elm-app start",
+    "start": "NODE_OPTIONS=--openssl-legacy-provider npx elm-app start",
     "proxy": "lcp --proxyUrl https://play-with-fint.felleskomponent.no",
     "test": "npx elm-test --watch",
     "elm-build": "npx elm-app build",
