@@ -7,27 +7,28 @@
     "test": "tests"
   },
   "dependencies": {
-    "@fortawesome/fontawesome-free": "^5.15.2",
+    "@fortawesome/fontawesome-free": "^6.0.0",
     "bulma": "^0.9.2",
     "bulma-steps-component": "^0.5.3",
     "trim-newlines": ">=3.0.1"
   },
   "devDependencies": {
-    "concurrently": "^6.0.0",
+    "concurrently": "^7.0.0",
+    "create-elm-app": "^5.22.0",
     "elm-test": "^0.19.1-revision6",
     "local-cors-proxy": "^1.1.0",
-    "node-sass": "^5.0.0",
     "trim-newlines": ">=3.0.1"
   },
   "scripts": {
     "functions-ci": "cd functions && npm ci",
     "start": "npx elm-app start",
+    "proxy": "lcp --proxyUrl https://play-with-fint.felleskomponent.no",
     "test": "npx elm-test --watch",
     "elm-build": "npx elm-app build",
     "css-build": "node-sass --omit-source-map-url src/main.scss src/main.css",
     "css-watch": "npm run css-build -- --watch",
     "functions": "firebase emulators:start --only functions",
-    "dev": "concurrently --kill-others \"npm test\" \"npm run css-watch\" \"npm run start\"",
+    "dev": "concurrently --kill-others \"npm run proxy\" \"npm run start\"",
     "build": "concurrently \"npm run css-build\" \"npm run elm-build\""
   },
   "author": "",
