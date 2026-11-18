@@ -30,4 +30,4 @@ package.json:
         * Cache size: https://play-with-fint.felleskomponent.no/utdanning/elev/basisgruppe/cache/size
         * Last updated: https://play-with-fint.felleskomponent.no/utdanning/elev/basisgruppe/last-updated
 
-
+Kjør `npm ci` og `npm start` for lokal utvikling med elm-watch. `npm run build` lager produksjonsbygget i `build/`.
