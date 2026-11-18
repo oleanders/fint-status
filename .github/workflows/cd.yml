@@ -17,10 +17,9 @@ jobs:
 
       - name: Build
         run: |
-          npm install
+          npm ci
           npm run functions-ci
-          npm install create-elm-app
-          npx elm-app build
+          npm run build
      
       - name: Publish function
         uses: w9jds/firebase-action@master
