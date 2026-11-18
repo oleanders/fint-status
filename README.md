@@ -13,12 +13,7 @@ Demo tilgjengelig på https://fintstatus.web.app
 
 ## Local cors proxy
 
-package.json:
-```
- "scripts": {
-   "proxy": "lcp --proxyUrl https://beta.felleskomponent.no"
- }
- ```
+Kjør `npm run proxy` for å bruke FINTs testmiljø via `http://localhost:8010/proxy/`.
 
 ## API som er i bruk
 
