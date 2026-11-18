@@ -17,12 +17,12 @@ jobs:
 
       - name: Build
         run: |
-          npm install
+          npm ci
           npm run functions-ci
-          npm install create-elm-app
-          npx elm-app build
+          npm run build
      
       - name: Publish function
+        if: ${{ !startsWith(github.ref_name, 'dependabot/') && github.ref_name != 'dependabot-oppsett' }}
         uses: w9jds/firebase-action@master
         with:
           args: deploy --only "functions:proxy"
@@ -31,6 +31,7 @@ jobs:
           PROJECT_ID: eidjord
 
       - name: Publish web
+        if: ${{ !startsWith(github.ref_name, 'dependabot/') && github.ref_name != 'dependabot-oppsett' }}
         uses: w9jds/firebase-action@master
         with:
           args: deploy --only "hosting:fintstatustest"
