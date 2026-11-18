@@ -4,13 +4,31 @@ updates:
     directory: "/"
     schedule:
       interval: daily
+    groups:
+      elm:
+        patterns: ["*"]
+      elm-security:
+        applies-to: security-updates
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: daily
+    groups:
+      github-actions:
+        patterns: ["*"]
+      github-actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
   - package-ecosystem: npm
     directories:
       - "/"
       - "/functions"
     schedule:
       interval: daily
+    groups:
+      npm:
+        patterns: ["*"]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
