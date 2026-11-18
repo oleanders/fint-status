@@ -16,3 +16,4 @@ example-responses/*.json
 
 *debug.log
 *.cache
+/public/elm.js
