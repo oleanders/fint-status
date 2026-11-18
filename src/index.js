@@ -1,9 +1,8 @@
 import './main.css';
 import '@fortawesome/fontawesome-free/js/all.js';
-import { Elm } from './Main.elm';
 import * as serviceWorker from './serviceWorker';
 
-Elm.Main.init({
+window.Elm.Main.init({
   node: document.getElementById('root')
 });
 
