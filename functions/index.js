@@ -1,40 +1,33 @@
 const functions = require("firebase-functions/v1");
-const rp = require('request-promise');
 
-exports.proxy = functions.https.onRequest((req, res) => {
-
-    // url fix: 
-    const requestUrl = req.url
-        .replace(/^\//, '') // fjerner "/"
-        .replace(/^proxy\/https:\//, 'https://'); // rydder url i publisert function
-
-    //functions.logger.info("requestUrl: ", requestUrl);
-
-    if (!/^https:\/\/[a-zA-Z-]*\.felleskomponent\.no/.test(requestUrl)) {
-        res.status(400).send("Kun for *.felleskomponent.no")
-        return
+exports.proxy = functions.https.onRequest(async (req, res) => {
+    const path = req.url.replace(/^\//, "").replace(/^proxy\/https:\//, "https://");
+    let url;
+    try {
+        url = new URL(path);
+    } catch {
+        return res.status(400).send("Kun for *.felleskomponent.no");
+    }
+    if (url.protocol !== "https:" || !/^[a-z-]+\.felleskomponent\.no$/.test(url.hostname)
+        || url.port || url.username || url.password) {
+        return res.status(400).send("Kun for *.felleskomponent.no");
     }
 
-    var options = {
-        method: req.method,
-        uri: requestUrl,
-        body: null,
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': req.headers['authorization'],
-            'x-org-id': req.headers['x-org-id'],
-            'x-client': req.headers['x-client'],
-        },
-        json: true
-    };
-    //functions.logger.info("New Request options: ", options);
-
-    rp(options)
-        .then(parsedBody => {
-            res.send(parsedBody);
-        })
-        .catch(err => {
-            res.status(500).send(err)
-        });
-
+    const headers = { "Content-Type": "application/json" };
+    for (const key of ["authorization", "x-org-id", "x-client"]) {
+        if (req.headers[key]) headers[key] = req.headers[key];
+    }
+    try {
+        const upstream = await fetch(url, { method: req.method, headers, redirect: "error" });
+        if (!upstream.ok) return res.status(500).send("Forespørselen til FINT feilet");
+        const body = await upstream.text();
+        // Bevar også tekstsvar fra helsesjekkene.
+        try {
+            return res.json(JSON.parse(body));
+        } catch {
+            return res.type("text/plain").send(body);
+        }
+    } catch {
+        return res.status(500).send("Forespørselen til FINT feilet");
+    }
 });

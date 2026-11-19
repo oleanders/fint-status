@@ -19,6 +19,7 @@ jobs:
         run: |
           npm ci
           npm run functions-ci
+          npm --prefix functions test
           npm run build
      
       - name: Publish function
