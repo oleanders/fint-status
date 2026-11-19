@@ -2,6 +2,7 @@
   "name": "functions",
   "description": "Cloud Functions for Firebase",
   "scripts": {
+    "test": "node --test index.test.js",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
@@ -15,9 +16,7 @@
   "dependencies": {
     "cors": "^2.8.6",
     "firebase-admin": "^14.5.1",
-    "firebase-functions": "^7.4.0",
-    "request": "^2.88.2",
-    "request-promise": "^4.2.6"
+    "firebase-functions": "^7.4.0"
   },
   "private": true
 }

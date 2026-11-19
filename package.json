@@ -15,7 +15,6 @@
   "devDependencies": {
     "concurrently": "^10.0.0",
     "elm-test": "^0.19.1-revision17",
-    "local-cors-proxy": "^1.1.0",
     "trim-newlines": ">=5.0.0",
     "elm": "0.19.1-6",
     "elm-watch": "^1.2.9",
@@ -24,7 +23,7 @@
   "scripts": {
     "functions-ci": "cd functions && npm ci",
     "start": "concurrently -k \"elm-watch hot\" \"vite\"",
-    "proxy": "lcp --proxyUrl https://play-with-fint.felleskomponent.no",
+    "proxy": "vite --mode proxy --port 8010 --strictPort",
     "test": "npx elm-test --watch",
     "css-build": "node-sass --omit-source-map-url src/main.scss src/main.css",
     "css-watch": "npm run css-build -- --watch",
