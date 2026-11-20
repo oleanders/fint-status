@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "concurrently": "^10.0.0",
-    "elm-test": "^0.19.1-revision17",
+    "elm-test": "^0.19.1-revision18",
     "trim-newlines": ">=5.0.0",
     "elm": "0.19.1-6",
     "elm-watch": "^1.2.9",
